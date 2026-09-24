@@ -1,4 +1,5 @@
 # DevOps Intern Final
+[![CI](https://github.com/abihail22558/devops-intern-final/actions/workflows/ci.yml/badge.svg)](https://github.com/abihail22558/devops-intern-final/actions/workflows/ci.yml)
 
 A simple Nginx application used for the DevOps Intern Final project.
 
