@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: scripts
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: app/Dockerfile
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f app/Dockerfile \
+            --build-arg BUILD_SHA="${{ github.sha }}" \
+            -t devops-intern-final:${{ github.sha }} \
+            .
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build test image
+        run: |
+          docker build \
+            -f app/Dockerfile \
+            --build-arg BUILD_SHA="${{ github.sha }}" \
+            -t devops-intern-final:test \
+            .
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --name devops-intern-final \
+            -p 8080:8080 \
+            devops-intern-final:test
+
+      - name: Wait for readiness
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/healthz >/dev/null; then
+              echo "Container is ready."
+              exit 0
+            fi
+            echo "Waiting for container..."
+            sleep 2
+          done
+
+          echo "Container failed to become ready."
+          docker logs devops-intern-final
+          exit 1
+
+      - name: Run application healthcheck
+        run: |
+          bash scripts/healthcheck.sh http://localhost:8080
+
+      - name: Show container status
+        if: always()
+        run: docker ps -a
+
+      - name: Show container logs
+        if: always()
+        run: docker logs devops-intern-final
+
+      - name: Remove container
+        if: always()
+        run: docker rm -f devops-intern-final
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - build
+      - test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/Dockerfile
+          push: true
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/devops-intern-final:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/devops-intern-final:latest
