@@ -1,6 +1,6 @@
 variable "image_tag" {
   type    = string
-  default = "334b0c6ff01c456b3307d4343a69d70f31294eb4"
+  default = "44883a472842de973a8b23d9957a8955d83a57a5"
 }
 
 job "nginx-app" {
