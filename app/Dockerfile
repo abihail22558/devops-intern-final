@@ -3,9 +3,9 @@ FROM nginx:1.27-alpine-slim
 ARG BUILD_SHA=unknown
 
 COPY app/nginx.conf /etc/nginx/nginx.conf
-COPY index.html /usr/share/nginx/html/index.html
+COPY app/index.html /usr/share/nginx/html/index.html
 
-RUN sed -i "s/__BUILD_SHA__/${BUILD_SHA}/g" /etc/nginx/nginx.conf
+RUN sed -i "s/__BUILD_SHA__/${BUILD_SHA}/g" /etc/nginx/nginx.conf /usr/share/nginx/html/index.html
 
 USER nginx
 
